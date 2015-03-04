@@ -31,7 +31,18 @@ function get_ip () {
   echo $IP  
 }
 
-MANAGE_IP=$(get_ip eth0)
+if ifconfig eth0 > /dev/null 2>&1; then
+  echo "Looking for IP on eth0"
+  MANAGE_IP=$(get_ip eth0)
+elif ifconfig eno0 > /dev/null 2>&1; then
+  echo "Looking for IP on eno0"
+  MANAGE_IP=$(get_ip eno0)
+elif ifconfig eno1 > /dev/null 2>&1; then
+  echo "Looking for IP on eno1"
+  MANAGE_IP=$(get_ip eno1)
+else
+  exit 187
+fi
 
 echo COREOS_PUBLIC_IPV4=$MANAGE_IP >> $ENV
 echo COREOS_PRIVATE_IPV4=$MANAGE_IP >> $ENV

@@ -30,6 +30,7 @@ coreos:
         Where=/mnt/data
         Type=ext3
     - name: etcd2.service
+      command: start
       content: |
         [Unit]
         Description=etcd v2.0

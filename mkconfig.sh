@@ -6,7 +6,7 @@ fi
 
 SHORTNAME=$1
 DOMAIN=$2
-TEMPLATE=$2
+TEMPLATE=$3
 
 
 mkdir -p $1/openstack/latest

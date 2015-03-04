@@ -24,11 +24,9 @@ coreos:
       content: |
         [Unit]
         Description=Mounts the docker drive
-        Requires=format-sdb.service
-        After=format-sdb.service
         Before=docker.service
         [Mount]
-        What=/dev/sdb
+        What=/dev/sdb1
         Where=/var/lib/docker
         Type=ext4
     - name: fleet.service
