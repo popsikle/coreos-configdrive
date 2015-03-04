@@ -1,0 +1,37 @@
+#!/bin/bash -e
+
+ENV=$1
+
+if [ -z "$ENV" ]; then
+        echo usage: $0 /etc/environment
+        exit 1
+fi
+# test for rw
+touch $ENV
+if [ $? -ne 0 ]; then
+        echo exiting, unable to modify: $ENV
+        exit 1
+fi
+
+sed -i -e '/^COREOS_PUBLIC_IPV4=/d' \
+    -e '/^COREOS_PRIVATE_IPV4=/d' \
+    "${ENV}"
+
+# We spin loop until the we get an ip addresses
+function get_ip () {
+  IF=$1
+  IP=
+  while [ 1 ]; do
+    IP=$(ifconfig $IF | awk '/inet /{print $2}')
+    if [ "$IP" != "" ]; then
+      break
+    fi
+    sleep .1
+  done
+  echo $IP  
+}
+
+MANAGE_IP=$(get_ip eth0)
+
+echo COREOS_PUBLIC_IPV4=$MANAGE_IP >> $ENV
+echo COREOS_PRIVATE_IPV4=$MANAGE_IP >> $ENV

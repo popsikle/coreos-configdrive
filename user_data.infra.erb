@@ -1,0 +1,88 @@
+#cloud-config
+hostname: <%= shortname %>
+
+ssh_authorized_keys:
+  - ssh-rsa xxxxxxxxxxxxxxxxxx= rsa-key-20150303
+
+coreos:
+  fleet:
+    metadata: "role=services"
+  units:
+    - name: settimezone.service
+      command: start
+      content: |
+        [Unit]
+        Description=Set the timezone
+
+        [Service]
+        ExecStart=/usr/bin/timedatectl set-timezone UTC
+        RemainAfterExit=yes
+        Type=oneshot
+    - name: mnt-data.mount
+      command: start
+      content: |
+        [Unit]
+        Description=Data mount
+        Before=etcd2.service
+
+        [Mount]
+        What=/dev/xvdb1
+        Where=/mnt/data
+        Type=ext3
+    - name: etcd2.service
+      content: |
+        [Unit]
+        Description=etcd v2.0
+        After=docker.service mnt-data.mount
+        Requires=docker.service mnt-data.mount
+        Conflicts=etcd.service
+
+        [Service]
+        ExecStartPre=/usr/bin/docker pull quay.io/coreos/etcd:v2.0.4
+        ExecStartPre=/bin/mkdir -pm 700 /mnt/data/<%= shortname %>
+        ExecStartPre=/bin/chown core /mnt/data/<%= shortname %>
+        ExecStart=/usr/bin/docker run \
+          --net=host \
+          --name=<%= shortname %> \
+          -e "ETCD_NAME=<%= shortname %>" \
+          -e "ETCD_DISCOVERY_SRV=<%= domainname %>" \
+          -e "ETCD_INITIAL_ADVERTISE_PEER_URLS=http://<%= shortname %>.<%= domainname %>:2380" \
+          -e "ETCD_ADVERTISE_CLIENT_URLS=http://$private_ipv4:2379,http://<%= shortname %>.<%= domainname %>:2379" \
+          -e "ETCD_LISTEN_CLIENT_URLS=http://$private_ipv4:2379,http://127.0.0.1:2379" \
+          -e "ETCD_LISTEN_PEER_URLS=http://<%= shortname %>.<%= domainname %>:2380" \
+          -e "ETCD_DATA_DIR=/data" \
+          -v /usr/share/ca-certificates/:/etc/ssl/certs \
+          -v /mnt/data/<%= shortname %>:/data \
+          quay.io/coreos/etcd:v2.0.0
+        ExecStop=/usr/bin/docker kill <%= shortname %>
+        ExecStop=/usr/bin/docker rm <%= shortname %>
+        Restart=always
+users:
+  - name: someuser
+    coreos-ssh-import-github: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    groups:
+      - sudo
+      - docker
+write_files:
+  - path: /home/core/.dockercfg
+    owner: core:core
+    permissions: 420
+    content: |-
+      {
+        "quay.io": {
+          "auth": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx==",
+          "email": "robots-null@keep.com"
+        }
+      }
+  - path: /etc/ntp.conf
+    content: |
+      # Common pool
+      server 0.pool.ntp.org
+      server 1.pool.ntp.org
+      server 2.pool.ntp.org
+
+      # - Allow only time queries, at a limited rate.
+      # - Allow all local queries (IPv4, IPv6)
+      restrict default nomodify nopeer noquery limited kod
+      restrict 127.0.0.1
+      restrict [::1]

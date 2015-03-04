@@ -1,0 +1,91 @@
+#cloud-config
+hostname: <%= shortname %>
+
+ssh_authorized_keys:
+  - ssh-rsa xxxxxxxxxxxxxxxxxx= rsa-key-20150303
+
+coreos:
+  fleet:
+    metadata: "role=worker"
+    etcd_servers: "http://10.0.1.10:2079,http://10.0.1.11:2079,http://10.0.1.12:2079,http://10.0.1.13:2079,http://10.0.1.14:2079"
+  units:
+    - name: settimezone.service
+      command: start
+      content: |
+        [Unit]
+        Description=Set the timezone
+
+        [Service]
+        ExecStart=/usr/bin/timedatectl set-timezone UTC
+        RemainAfterExit=yes
+        Type=oneshot
+    - name: var-lib-docker.mount
+      command: start
+      content: |
+        [Unit]
+        Description=Mounts the docker drive
+        Requires=format-sdb.service
+        After=format-sdb.service
+        Before=docker.service
+        [Mount]
+        What=/dev/sdb
+        Where=/var/lib/docker
+        Type=ext4
+    - name: fleet.service
+      command: start
+    - name: docker-tcp.socket
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        Description=Docker Socket for the API
+
+        [Socket]
+        ListenStream=2375
+        Service=docker.service
+        BindIPv6Only=both
+
+        [Install]
+        WantedBy=sockets.target
+users:
+  - name: someuser
+    coreos-ssh-import-github: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    groups:
+      - sudo
+      - docker
+write_files:
+  - path: /etc/profile.d/etcdctl.sh
+    permissions: 0644
+    owner: core
+    content: |
+      # configure etcdctl to work with our etcd servers set above
+      export ETCDCTL_PEERS="http://10.0.1.10:2079,http://10.0.1.11:2079,http://10.0.1.12:2079,http://10.0.1.13:2079,http://10.0.1.14:2079"
+  - path: /etc/profile.d/fleetctl.sh
+    permissions: 0644
+    owner: core
+    content: |
+      # configure fleetctl to work with our etcd servers set above
+      export FLEETCTL_ENDPOINT=unix:///var/run/fleet.sock
+      export FLEETCTL_EXPERIMENTAL_API=true
+  - path: /home/core/.dockercfg
+    owner: core:core
+    permissions: 420
+    content: |-
+      {
+        "quay.io": {
+          "auth": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx==",
+          "email": "robots-null@keep.com"
+        }
+      }
+  - path: /etc/ntp.conf
+    content: |
+      # Common pool
+      server 0.pool.ntp.org
+      server 1.pool.ntp.org
+      server 2.pool.ntp.org
+
+      # - Allow only time queries, at a limited rate.
+      # - Allow all local queries (IPv4, IPv6)
+      restrict default nomodify nopeer noquery limited kod
+      restrict 127.0.0.1
+      restrict [::1]
